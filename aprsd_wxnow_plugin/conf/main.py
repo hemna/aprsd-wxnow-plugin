@@ -3,18 +3,23 @@ from oslo_config import cfg
 
 plugin_group = cfg.OptGroup(
     name="aprsd_wxnow_plugin",
-    title="APRSD Slack Plugin settings",
+    title="APRSD WXNOW Plugin settings",
 )
 
 plugin_opts = [
-    cfg.BoolOpt(
-        "enabled",
-        default=False,
-        help="Enable the plugin?",
+    cfg.StrOpt(
+        "haminfo_apiKey",
+        help="Haminfo API key",
+    ),
+    cfg.StrOpt(
+        "haminfo_base_url",
+        help="The base url to the haminfo REST API",
     ),
 ]
 
-ALL_OPTS = plugin_opts
+ALL_OPTS = (
+    plugin_opts
+)
 
 
 def register_opts(cfg):

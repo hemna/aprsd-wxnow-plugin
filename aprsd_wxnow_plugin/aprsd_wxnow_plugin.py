@@ -1,6 +1,7 @@
 import logging
 
-from aprsd import packets, plugin
+import requests
+from aprsd import packets, plugin, plugin_utils
 from aprsd.utils import trace
 from oslo_config import cfg
 
@@ -11,18 +12,29 @@ from aprsd_wxnow_plugin import conf  # noqa
 CONF = cfg.CONF
 LOG = logging.getLogger("APRSD")
 
+API_KEY_HEADER = "X-Api-Key"
 
-class WXNowPlugin(plugin.APRSDRegexCommandPluginBase):
+
+class InvalidRequest(Exception):
+    message = "Couldn't decipher request"
+
+
+class NoAPRSFIApiKeyException(Exception):
+    message = "No aprs.fi ApiKey found in config"
+
+
+class NoAPRSFILocationException(Exception):
+    message = "Unable to find location from aprs.fi"
+
+
+class WXNowPlugin(
+    plugin.APRSDRegexCommandPluginBase,
+    plugin.APRSFIKEYMixin,
+):
 
     version = aprsd_wxnow_plugin.__version__
-    # Change this regex to match for your plugin's command
-    # Tutorial on regex here: https://regexone.com/
-    # Look for any command that starts with w or W
-    command_regex = "^[wW]"
-    # the command is for ?
-    # Change this value to a 1 word description of the plugin
-    # this string is used for help
-    command_name = "weather"
+    command_regex = r"^([n]|[n]\s|nearest)"
+    command_name = "nearest"
 
     enabled = False
 
@@ -33,36 +45,147 @@ class WXNowPlugin(plugin.APRSDRegexCommandPluginBase):
         will prevent the plugin from being called when packets are
         received."""
         # Do some checks here?
+        LOG.info("WXNowPlugin::setup()")
         self.enabled = True
+        self.ensure_aprs_fi_key()
+        if not CONF.aprsd_wxnow_plugin.haminfo_apiKey:
+            LOG.error("Missing aprsd_wxnow_plugin.haminfo_apiKey")
+            self.enabled = False
 
-    def create_threads(self):
-        """This allows you to create and return a custom APRSDThread object.
+        if not CONF.aprsd_wxnow_plugin.haminfo_base_url:
+            LOG.error("Missing aprsd_wxnow_plugin.haminfo_base_url")
+            self.enabled = False
 
-        Create a child of the aprsd.threads.APRSDThread object and return it
-        It will automatically get started.
+    def help(self):
+        _help = [
+            "nearest: Return nearest weather to your last beacon.",
+            "nearest: Send 'n [count]'",
+        ]
+        return _help
 
-        You can see an example of one here:
-        https://github.com/craigerl/aprsd/blob/master/aprsd/threads.py#L141
-        """
-        if self.enabled:
-            # You can create a background APRSDThread object here
-            # Just return it for example:
-            # https://github.com/hemna/aprsd-weewx-plugin/blob/master/aprsd_weewx_plugin/aprsd_weewx_plugin.py#L42-L50
-            #
-            return []
+    @staticmethod
+    def is_int(value):
+        try:
+            int(value)
+            return True
+        except ValueError:
+            return False
+
+    def fetch_data(self, packet):
+        fromcall = packet.from_call
+        message = packet.message_text
+
+        # get last location of a callsign, get descriptive name from weather service
+        api_key = CONF.aprs_fi.apiKey
+
+        try:
+            aprs_data = plugin_utils.get_aprs_fi(api_key, fromcall)
+        except Exception as ex:
+            LOG.exception(ex)
+            LOG.error(f"Failed to fetch aprs.fi '{ex}'")
+            raise NoAPRSFILocationException()
+
+        if not len(aprs_data["entries"]):
+            LOG.error("Didn't get any entries from aprs.fi")
+            raise NoAPRSFILocationException()
+
+        lat = aprs_data["entries"][0]["lat"]
+        lon = aprs_data["entries"][0]["lng"]
+
+        command_parts = message.split(" ")
+        LOG.info(command_parts)
+
+        count = None
+        for part in command_parts[1:]:
+            if self.is_int(part):
+                # this is the number of stations
+                count = int(part)
+                # Lets max out at 10 replies
+                if count > 5:
+                    count = 5
+            elif not part:
+                continue
+            else:
+                # We don't know what they are asking for
+                raise InvalidRequest()
+
+        if not count:
+            count = 1
+
+        LOG.info(
+            f"Looking for the nearest {count} weather stations"
+            f" from {lat}/{lon}",
+        )
+
+        try:
+            url = "{}/wxnearest".format(
+                CONF.aprsd_wxnow_plugin.haminfo_base_url,
+            )
+            api_key = CONF.aprsd_wxnow_plugin.haminfo_apiKey
+            params = {
+                "lat": lat, "lon": lon,
+                "count": count,
+                "callsign": fromcall,
+            }
+
+            headers = {API_KEY_HEADER: api_key}
+            result = requests.post(url=url, json=params, headers=headers)
+            data = result.json()
+
+        except Exception as ex:
+            LOG.error(f"Couldn't fetch nearest stations '{ex}'")
+            data = None
+
+        return data
 
     @trace.trace
     def process(self, packet: packets.core.Packet):
-
         """This is called when a received packet matches self.command_regex.
 
         This is only called when self.enabled = True and the command_regex
         matches in the contents of the packet["message_text"]."""
 
-        LOG.info("WXNowPlugin Plugin")
+        LOG.info("WXNowPlugin Plugin Called")
 
         packet.from_call
         packet.message_text
 
-        # Now we can process
-        return "some reply message"
+        try:
+            data = self.fetch_data(packet)
+        except NoAPRSFILocationException as ex:
+            return ex.message
+        except NoAPRSFILocationException as ex:
+            return ex.message
+        except InvalidRequest as ex:
+            return ex.message
+        except Exception:
+            return "Failed to fetch data"
+
+        if data:
+            # just do the first one for now
+            replies = []
+            for entry in data:
+                LOG.info(f"Using {entry}")
+
+                # US and UK are in miles, everywhere else is metric?
+                # by default units are meters
+                distance = entry["distance"]
+                units = entry["distance_units"]
+                if entry["distance_units"] == "meters":
+                    units = "m"
+                # Convert C to F
+                temperature = (entry["report"]["temperature"] * 1.8) + 32
+                wind_dir = entry["report"]["wind_direction"]
+                wind_speed = entry["report"]["wind_gust"]
+                reply = (
+                    f"{entry['callsign']} "
+                    f"{distance}{units} {entry['direction']} "
+                    f"{temperature:.0f}F "
+                    f"{entry['report']['pressure']}mbar "
+                    f"{wind_dir}@{wind_speed:.0f} "
+                    f"R{entry['report']['rain_1h']}"
+                )
+                replies.append(reply)
+            return replies
+        else:
+            return "None Found"
