@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 
 import requests
 from aprsd import packets, plugin, plugin_utils
@@ -177,15 +178,25 @@ class WXNowPlugin(
                 temperature = (entry["report"]["temperature"] * 1.8) + 32
                 wind_dir = entry["report"]["wind_direction"]
                 wind_speed = entry["report"]["wind_gust"]
-                reply = (
+
+                date = datetime.strptime(entry["report"]["time"], "%Y-%m-%d %H:%M:%S")
+                date_str = date.strftime("%m/%d %H:%M")
+                reply1 = (
                     f"{entry['callsign']} "
+                    f"{date_str} "
                     f"{distance}{units} {entry['direction']} "
                     f"{temperature:.0f}F "
+                    f"{entry['report']['humidity']}% "
                     f"{entry['report']['pressure']}mbar "
-                    f"{wind_dir}@{wind_speed:.0f} "
-                    f"R{entry['report']['rain_1h']}"
                 )
-                replies.append(reply)
+                reply2 = (
+                    f"{entry['callsign']} "
+                    f"Wind {wind_dir}@{wind_speed:.0f} "
+                    f"Rain1h {entry['report']['rain_1h']} "
+                    f"Rain24h {entry['report']['rain_24h']} "
+                )
+                replies.append(reply1)
+                replies.append(reply2)
             return replies
         else:
             return "None Found"
