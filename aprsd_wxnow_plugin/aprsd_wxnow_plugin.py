@@ -9,22 +9,21 @@ from oslo_config import cfg
 import aprsd_wxnow_plugin
 from aprsd_wxnow_plugin import conf  # noqa
 
-
 CONF = cfg.CONF
 LOG = logging.getLogger("APRSD")
 
 API_KEY_HEADER = "X-Api-Key"
 
 
-class InvalidRequest(Exception):
+class InvalidRequestError(Exception):
     message = "Couldn't decipher request"
 
 
-class NoAPRSFIApiKeyException(Exception):
+class NoAPRSFIApiKeyError(Exception):
     message = "No aprs.fi ApiKey found in config"
 
 
-class NoAPRSFILocationException(Exception):
+class NoAPRSFILocationError(Exception):
     message = "Unable to find location from aprs.fi"
 
 
@@ -32,7 +31,6 @@ class WXNowPlugin(
     plugin.APRSDRegexCommandPluginBase,
     plugin.APRSFIKEYMixin,
 ):
-
     version = aprsd_wxnow_plugin.__version__
     command_regex = r"^([n]|[n]\s|nearest)"
     command_name = "nearest"
@@ -84,11 +82,11 @@ class WXNowPlugin(
         except Exception as ex:
             LOG.exception(ex)
             LOG.error(f"Failed to fetch aprs.fi '{ex}'")
-            raise NoAPRSFILocationException()
+            raise NoAPRSFILocationError()
 
         if not len(aprs_data["entries"]):
             LOG.error("Didn't get any entries from aprs.fi")
-            raise NoAPRSFILocationException()
+            raise NoAPRSFILocationError()
 
         lat = aprs_data["entries"][0]["lat"]
         lon = aprs_data["entries"][0]["lng"]
@@ -108,23 +106,21 @@ class WXNowPlugin(
                 continue
             else:
                 # We don't know what they are asking for
-                raise InvalidRequest()
+                raise InvalidRequestError()
 
         if not count:
             count = 1
 
         LOG.info(
-            f"Looking for the nearest {count} weather stations"
-            f" from {lat}/{lon}",
+            f"Looking for the nearest {count} weather stations from {lat}/{lon}",
         )
 
         try:
-            url = "{}/wxnearest".format(
-                CONF.aprsd_wxnow_plugin.haminfo_base_url,
-            )
+            url = f"{CONF.aprsd_wxnow_plugin.haminfo_base_url}/wxnearest"
             api_key = CONF.aprsd_wxnow_plugin.haminfo_apiKey
             params = {
-                "lat": lat, "lon": lon,
+                "lat": lat,
+                "lon": lon,
                 "count": count,
                 "callsign": fromcall,
             }
@@ -153,11 +149,9 @@ class WXNowPlugin(
 
         try:
             data = self.fetch_data(packet)
-        except NoAPRSFILocationException as ex:
+        except NoAPRSFILocationError as ex:
             return ex.message
-        except NoAPRSFILocationException as ex:
-            return ex.message
-        except InvalidRequest as ex:
+        except InvalidRequestError as ex:
             return ex.message
         except Exception:
             return "Failed to fetch data"
@@ -181,19 +175,22 @@ class WXNowPlugin(
 
                 date = datetime.strptime(entry["report"]["time"], "%Y-%m-%d %H:%M:%S")
                 date_str = date.strftime("%m/%d %H:%M")
+                callsign = entry["callsign"]
+                direction = entry["direction"]
+                report = entry["report"]
                 reply1 = (
-                    f"{entry['callsign']} "
+                    f"{callsign} "
                     f"{date_str} "
-                    f"{distance}{units} {entry['direction']} "
+                    f"{distance}{units} {direction} "
                     f"{temperature:.0f}F "
-                    f"{entry['report']['humidity']}% "
-                    f"{entry['report']['pressure']}mbar "
+                    f"{report['humidity']}% "
+                    f"{report['pressure']}mbar "
                 )
                 reply2 = (
-                    f"{entry['callsign']} "
+                    f"{callsign} "
                     f"Wind {wind_dir}@{wind_speed:.0f} "
-                    f"Rain1h {entry['report']['rain_1h']} "
-                    f"Rain24h {entry['report']['rain_24h']} "
+                    f"Rain1h {report['rain_1h']} "
+                    f"Rain24h {report['rain_24h']} "
                 )
                 replies.append(reply1)
                 replies.append(reply2)

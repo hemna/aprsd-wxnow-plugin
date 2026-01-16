@@ -1,6 +1,5 @@
 from oslo_config import cfg
 
-
 plugin_group = cfg.OptGroup(
     name="aprsd_wxnow_plugin",
     title="APRSD WXNOW Plugin settings",
@@ -17,9 +16,7 @@ plugin_opts = [
     ),
 ]
 
-ALL_OPTS = (
-    plugin_opts
-)
+ALL_OPTS = plugin_opts
 
 
 def register_opts(cfg):

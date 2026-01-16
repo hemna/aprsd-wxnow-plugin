@@ -12,5 +12,4 @@
 
 import pbr.version
 
-
 __version__ = pbr.version.VersionInfo("aprsd_wxnow_plugin").version_string()
