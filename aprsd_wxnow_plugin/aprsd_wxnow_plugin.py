@@ -45,7 +45,7 @@ class WXNowPlugin(
         received."""
         # Do some checks here?
         LOG.info("WXNowPlugin::setup()")
-        self.enabled = True
+        self.enabled = CONF.aprsd_wxnow_plugin.enabled
         self.ensure_aprs_fi_key()
         if not CONF.aprsd_wxnow_plugin.haminfo_apiKey:
             LOG.error("Missing aprsd_wxnow_plugin.haminfo_apiKey")
@@ -141,6 +141,10 @@ class WXNowPlugin(
 
         This is only called when self.enabled = True and the command_regex
         matches in the contents of the packet["message_text"]."""
+
+        if not self.enabled:
+            LOG.info("WXNowPlugin Plugin is not enabled")
+            return
 
         LOG.info("WXNowPlugin Plugin Called")
 
