@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "aprsd_wxnow_plugin"
 version = "0.0.0"  # Version managed by pbr
 description = "APRSD Plugin for getting the closest wx reports to last beacon"
-readme = "README.rst"
+readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "Apache-2.0"}
 authors = [
@@ -39,6 +39,7 @@ dev = [
     "tox-uv",
     "coverage",
     "Sphinx",
+    "myst-parser",
     "twine",
     "pytest",
     "mypy",

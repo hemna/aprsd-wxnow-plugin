@@ -11,6 +11,12 @@ Welcome to APRSD Nearest station plugin's documentation!
    authors
    history
 
+.. toctree::
+   :maxdepth: 2
+   :caption: API Reference:
+
+   apidoc/modules
+
 Indices and tables
 ==================
 * :ref:`genindex`
