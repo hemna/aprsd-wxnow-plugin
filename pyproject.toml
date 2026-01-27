@@ -23,7 +23,6 @@ classifiers = [
 ]
 dependencies = [
     "pbr",
-    "aprsd>=4.2.0",
     "oslo_config",
 ]
 
