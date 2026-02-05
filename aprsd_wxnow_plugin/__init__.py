@@ -12,4 +12,6 @@
 
 import pbr.version
 
+from aprsd_wxnow_plugin import conf  # noqa: F401
+
 __version__ = pbr.version.VersionInfo("aprsd_wxnow_plugin").version_string()
