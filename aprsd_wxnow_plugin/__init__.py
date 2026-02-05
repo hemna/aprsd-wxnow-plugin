@@ -10,8 +10,9 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-import pbr.version
+from importlib.metadata import PackageNotFoundError, version
 
-from aprsd_wxnow_plugin import conf  # noqa: F401
-
-__version__ = pbr.version.VersionInfo("aprsd_wxnow_plugin").version_string()
+try:
+    __version__ = version('aprsd-wxnow-plugin')
+except PackageNotFoundError:
+    pass
