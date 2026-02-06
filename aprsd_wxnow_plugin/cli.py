@@ -34,7 +34,9 @@ def main():
     """Main entry point for CLI."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Export aprsd-wxnow-plugin configuration options")
+    parser = argparse.ArgumentParser(
+        description="Export aprsd-wxnow-plugin configuration options"
+    )
     parser.add_argument(
         "--format",
         choices=["dict", "json"],

@@ -124,7 +124,8 @@ def export_config(format="dict"):
                 "type": type(opt).__name__,
                 "default": getattr(opt, "default", None),
                 "help": getattr(opt, "help", ""),
-                "required": not hasattr(opt, "default") or getattr(opt, "default", None) is None,
+                "required": not hasattr(opt, "default")
+                or getattr(opt, "default", None) is None,
             }
 
             # Add additional attributes if available
