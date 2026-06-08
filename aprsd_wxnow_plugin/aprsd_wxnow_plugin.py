@@ -10,9 +10,9 @@ import aprsd_wxnow_plugin
 from aprsd_wxnow_plugin import conf  # noqa
 
 CONF = cfg.CONF
-LOG = logging.getLogger('APRSD')
+LOG = logging.getLogger("APRSD")
 
-API_KEY_HEADER = 'X-Api-Key'
+API_KEY_HEADER = "X-Api-Key"
 
 
 class InvalidRequestError(Exception):
@@ -20,11 +20,11 @@ class InvalidRequestError(Exception):
 
 
 class NoAPRSFIApiKeyError(Exception):
-    message = 'No aprs.fi ApiKey found in config'
+    message = "No aprs.fi ApiKey found in config"
 
 
 class NoAPRSFILocationError(Exception):
-    message = 'Unable to find location from aprs.fi'
+    message = "Unable to find location from aprs.fi"
 
 
 class WXNowPlugin(
@@ -32,8 +32,8 @@ class WXNowPlugin(
     plugin.APRSFIKEYMixin,
 ):
     version = aprsd_wxnow_plugin.__version__
-    command_regex = r'^([n]|[n]\s|nearest)'
-    command_name = 'nearest'
+    command_regex = r"^([n]|[n]\s|nearest)"
+    command_name = "nearest"
 
     enabled = False
 
@@ -44,20 +44,20 @@ class WXNowPlugin(
         will prevent the plugin from being called when packets are
         received."""
         # Do some checks here?
-        LOG.info('WXNowPlugin::setup()')
+        LOG.info("WXNowPlugin::setup()")
         self.enabled = CONF.aprsd_wxnow_plugin.enabled
         self.ensure_aprs_fi_key()
         if not CONF.aprsd_wxnow_plugin.haminfo_apiKey:
-            LOG.error('Missing aprsd_wxnow_plugin.haminfo_apiKey')
+            LOG.error("Missing aprsd_wxnow_plugin.haminfo_apiKey")
             self.enabled = False
 
         if not CONF.aprsd_wxnow_plugin.haminfo_base_url:
-            LOG.error('Missing aprsd_wxnow_plugin.haminfo_base_url')
+            LOG.error("Missing aprsd_wxnow_plugin.haminfo_base_url")
             self.enabled = False
 
     def help(self):
         _help = [
-            'nearest: Return nearest weather to your last beacon.',
+            "nearest: Return nearest weather to your last beacon.",
             "nearest: Send 'n [count]'",
         ]
         return _help
@@ -84,14 +84,14 @@ class WXNowPlugin(
             LOG.error(f"Failed to fetch aprs.fi '{ex}'")
             raise NoAPRSFILocationError()
 
-        if not len(aprs_data['entries']):
+        if not len(aprs_data["entries"]):
             LOG.error("Didn't get any entries from aprs.fi")
             raise NoAPRSFILocationError()
 
-        lat = aprs_data['entries'][0]['lat']
-        lon = aprs_data['entries'][0]['lng']
+        lat = aprs_data["entries"][0]["lat"]
+        lon = aprs_data["entries"][0]["lng"]
 
-        command_parts = message.split(' ')
+        command_parts = message.split(" ")
         LOG.info(command_parts)
 
         count = None
@@ -112,17 +112,17 @@ class WXNowPlugin(
             count = 1
 
         LOG.info(
-            f'Looking for the nearest {count} weather stations from {lat}/{lon}',
+            f"Looking for the nearest {count} weather stations from {lat}/{lon}",
         )
 
         try:
-            url = f'{CONF.aprsd_wxnow_plugin.haminfo_base_url}/wxnearest'
+            url = f"{CONF.aprsd_wxnow_plugin.haminfo_base_url}/wxnearest"
             api_key = CONF.aprsd_wxnow_plugin.haminfo_apiKey
             params = {
-                'lat': lat,
-                'lon': lon,
-                'count': count,
-                'callsign': fromcall,
+                "lat": lat,
+                "lon": lon,
+                "count": count,
+                "callsign": fromcall,
             }
 
             headers = {API_KEY_HEADER: api_key}
@@ -143,10 +143,10 @@ class WXNowPlugin(
         matches in the contents of the packet["message_text"]."""
 
         if not self.enabled:
-            LOG.info('WXNowPlugin Plugin is not enabled')
+            LOG.info("WXNowPlugin Plugin is not enabled")
             return
 
-        LOG.info('WXNowPlugin Plugin Called')
+        LOG.info("WXNowPlugin Plugin Called")
 
         packet.from_call
         packet.message_text
@@ -158,51 +158,52 @@ class WXNowPlugin(
         except InvalidRequestError as ex:
             return ex.message
         except Exception:
-            return 'Failed to fetch data'
+            return "Failed to fetch data"
 
         if data:
             # just do the first one for now
             replies = []
             for entry in data:
-                LOG.info(f'Using {entry}')
+                LOG.info(f"Using {entry}")
 
                 # US and UK are in miles, everywhere else is metric?
                 # by default units are meters
-                distance = entry['distance']
-                units = entry['distance_units']
-                if entry['distance_units'] == 'meters':
-                    units = 'm'
-                # Convert C to F
-                temperature = (entry['report']['temperature'] * 1.8) + 32
-                wind_dir = entry['report']['wind_direction']
-                wind_speed = entry['report']['wind_gust']
+                distance = entry["distance"]
+                units = entry["distance_units"]
+                if entry["distance_units"] == "meters":
+                    units = "m"
+                # haminfo API returns temperature in Fahrenheit
+                # (since rust-aprsd cutover 2026-03-30)
+                temperature = entry["report"]["temperature"]
+                wind_dir = entry["report"]["wind_direction"]
+                wind_speed = entry["report"]["wind_gust"]
 
                 # Handle datetime with or without microseconds
-                time_str = entry['report']['time']
+                time_str = entry["report"]["time"]
                 try:
-                    date = datetime.strptime(time_str, '%Y-%m-%d %H:%M:%S.%f')
+                    date = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S.%f")
                 except ValueError:
-                    date = datetime.strptime(time_str, '%Y-%m-%d %H:%M:%S')
-                date_str = date.strftime('%m/%d %H:%M')
-                callsign = entry['callsign']
-                direction = entry['direction']
-                report = entry['report']
+                    date = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
+                date_str = date.strftime("%m/%d %H:%M")
+                callsign = entry["callsign"]
+                direction = entry["direction"]
+                report = entry["report"]
                 reply1 = (
-                    f'{callsign} '
-                    f'{date_str} '
-                    f'{distance}{units} {direction} '
-                    f'{temperature:.0f}F '
-                    f'{report["humidity"]}% '
-                    f'{report["pressure"]}mbar '
+                    f"{callsign} "
+                    f"{date_str} "
+                    f"{distance}{units} {direction} "
+                    f"{temperature:.0f}F "
+                    f"{report['humidity']}% "
+                    f"{report['pressure']}mbar "
                 )
                 reply2 = (
-                    f'{callsign} '
-                    f'Wind {wind_dir}@{wind_speed:.0f} '
-                    f'Rain1h {report["rain_1h"]} '
-                    f'Rain24h {report["rain_24h"]} '
+                    f"{callsign} "
+                    f"Wind {wind_dir}@{wind_speed:.0f} "
+                    f"Rain1h {report['rain_1h']} "
+                    f"Rain24h {report['rain_24h']} "
                 )
                 replies.append(reply1)
                 replies.append(reply2)
             return replies
         else:
-            return 'None Found'
+            return "None Found"
